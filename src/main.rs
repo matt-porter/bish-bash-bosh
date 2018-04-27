@@ -54,7 +54,16 @@ pub fn main() {
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas.clear();
     canvas.present();
-    
+
+    ///
+    /// Keep track of all displayed characters, and their postitions
+    /// 
+
+    let mut drawables = vec![];
+    let drawable_keys : HashSet<String> = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+                                         "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
+                                         "U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3",
+                                         "4", "5", "6", "7", "8", "9", ].iter().map(|s| s.to_string()).collect();
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -62,26 +71,32 @@ pub fn main() {
                     break 'running
                 },
                 Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
-                    canvas.set_draw_color(Color::RGB(255, 0, 0));
-                    canvas.clear();
-                    canvas.present();
+                    drawables.clear();
                 },
                 Event::KeyDown { keycode: Some(key), .. } 
                 => {
-                    let surface = font.render(&key.name())
-                        .blended(Color::RGBA(0, 0, 0, 255)).unwrap();
-                    let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
-                    let TextureQuery { width, height, .. } = texture.query();
-                    let target = random_position(
-                        rect!(0, 0, width, height),
-                        rect!(0, 0, window_width, window_height)); //rect!(150, 150, width, height);
-                    canvas.copy(&texture, None, Some(target)).unwrap();
-                    canvas.present();
+                    if drawable_keys.contains(&key.name()) {
+                        let surface = font.render(&key.name())
+                            .blended(Color::RGBA(0, 0, 0, 255)).unwrap();
+                        let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+                        let TextureQuery { width, height, .. } = texture.query();
+                        let target = random_position(
+                            rect!(0, 0, width, height),
+                            rect!(0, 0, window_width, window_height)); //rect!(150, 150, width, height);
+                        drawables.push((texture, target));
+                    }
                 },
                 _ => {}
             }
         }
+        // Draw the chars
+        canvas.set_draw_color(Color::RGB(255, 0, 0));
+        canvas.clear();
+        for &(ref texture, target) in drawables.iter() {
+            canvas.copy(&texture, None, Some(target.clone())).unwrap();
+        }
+        canvas.present();
         // let keys: HashSet<_> = event_pump.keyboard_state().pressed_scancodes().filter_map(Keycode::from_scancode).collect();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));              
     }
-}
+} 
