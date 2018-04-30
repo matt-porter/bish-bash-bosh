@@ -8,17 +8,38 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::render::TextureQuery;
 use sdl2::video::FullscreenType;
+use sdl2::audio::{AudioCallback, AudioSpecDesired,AudioSpecWAV,AudioCVT};
+
 use hsl::HSL;
 use rand::{Rng, thread_rng};
-
 use std::collections::HashSet;
+
 use std::time::Duration;
+use std::borrow::Cow;
+use std::path::{PathBuf, Path};
 
 macro_rules! rect(
     ($x:expr, $y:expr, $w:expr, $h:expr) => (
         Rect::new($x as i32, $y as i32, $w as u32, $h as u32)
     )
 );
+
+struct Sound {
+    data: Vec<u8>,
+    volume: f32,
+    pos: usize,
+}
+
+impl AudioCallback for Sound {
+    type Channel = u8;
+
+    fn callback(&mut self, out: &mut [u8]) {
+        for dst in out.iter_mut() {
+            *dst = (*self.data.get(self.pos).unwrap_or(&0) as f32 * self.volume) as u8;
+            self.pos += 1;
+        }
+    }
+}
 
 /// Return a random position that fits rect within rect
 fn random_position(rect: Rect, within_rect: Rect) -> Rect {
@@ -46,6 +67,7 @@ fn display_keys(keys: HashSet<sdl2::keyboard::Keycode>, canvas: &mut sdl2::rende
 pub fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
+    let audio_subsystem = sdl_context.audio().unwrap();
     let (window_width, window_height) = (800, 600);
     let mut window = video_subsystem.window("Bish Bash Bosh", window_width, window_height)
         .position_centered()
@@ -62,6 +84,13 @@ pub fn main() {
     // Load a font
     let mut font = ttf_context.load_font("DejaVuSans-Bold.ttf", 112).unwrap();
     font.set_style(sdl2::ttf::STYLE_BOLD);
+    // Load a sound
+    let wav_file : Cow<'static, Path> = Cow::from(Path::new("./sounds/68437__pinkyfinger__piano-a.wav"));
+    let desired_spec = AudioSpecDesired {
+            freq: Some(44_100),
+            channels: Some(1), // mono
+            samples: None      // default
+    };
     
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas.clear();
@@ -86,6 +115,32 @@ pub fn main() {
                 Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
                     drawables.clear();
                     background_color = random_colour();
+                },
+                Event::KeyDown { keycode: Some(Keycode::F1), .. } => {
+                    // Need to dump noise in a background thread or something
+                    let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                        let wav = AudioSpecWAV::load_wav(wav_file.clone())
+                            .expect("Could not load test WAV file");
+
+                        let cvt = AudioCVT::new(
+                                wav.format, wav.channels, wav.freq,
+                                spec.format, spec.channels, spec.freq)
+                            .expect("Could not convert WAV file");
+
+                        let data = cvt.convert(wav.buffer().to_vec());
+
+                        // initialize the audio callback
+                        Sound {
+                            data: data,
+                            volume: 0.25,
+                            pos: 0,
+                        }
+                    }).unwrap();
+
+                    // Start playback
+                    device.resume();
+                    // Play for a second
+                    std::thread::sleep(Duration::from_millis(1_000));
                 },
                 Event::KeyDown { keycode: Some(key), .. } 
                 => {
