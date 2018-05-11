@@ -12,7 +12,7 @@ use sdl2::video::FullscreenType;
 
 use hsl::HSL;
 use rand::{thread_rng, Rng};
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -61,13 +61,13 @@ fn random_colour() -> Color {
     return Color::RGB(rgb.0, rgb.1, rgb.2);
 }
 
-fn display_keys(
-    keys: HashSet<sdl2::keyboard::Keycode>,
-    canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-) {
-    println!("Displaying keys {:?}", keys);
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
-    canvas.draw_rect(Rect::new(20, 20, 50, 50)).unwrap();
+fn load_sound(note: &str) -> AudioSpecWAV {
+    // Load a sound
+    let filename = format!("{}.wav", note);
+    let path: PathBuf = ["./sounds", &filename].iter().collect();
+    let wav_file: Cow<'static, Path> = Cow::from(path);
+    AudioSpecWAV::load_wav(wav_file.clone())
+        .expect("Could not load test WAV file")
 }
 
 pub fn main() {
@@ -91,43 +91,16 @@ pub fn main() {
     // Load a font
     let mut font = ttf_context.load_font("DejaVuSans-Bold.ttf", 112).unwrap();
     font.set_style(sdl2::ttf::STYLE_BOLD);
-    // Load a sound
-    let wav_file: Cow<'static, Path> =
-        Cow::from(Path::new("./sounds/68437__pinkyfinger__piano-a.wav"));
+    
     let desired_spec = AudioSpecDesired {
         freq: Some(44_100),
         channels: Some(1), // mono
         samples: None,     // default
     };
-    let mut sound_struct = Sound {
-        data: vec![],
-        volume: 0.25,
-        pos: 0,
-    };
 
     let audio_queue: AudioQueue<u8> = audio_subsystem
         .open_queue(None, &desired_spec)
         .unwrap();
-    // let device = audio_subsystem
-    //     .open_playback(None, &desired_spec, |spec| {
-    //         let wav = AudioSpecWAV::load_wav(wav_file.clone())
-    //             .expect("Could not load test WAV file");
-
-    //         let cvt = AudioCVT::new(
-    //             wav.format,
-    //             wav.channels,
-    //             wav.freq,
-    //             spec.format,
-    //             spec.channels,
-    //             spec.freq,
-    //         ).expect("Could not convert WAV file");
-
-    //         let data = cvt.convert(wav.buffer().to_vec());
-    //         sound_struct.data = data;
-    //         sound_struct
-    //     })
-    //     .unwrap();
-
 
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas.clear();
@@ -143,6 +116,22 @@ pub fn main() {
     ].iter()
         .map(|s| s.to_string())
         .collect();
+    let noisy_keys: HashMap<String, String> = [
+        ("F1", "37a"),
+        ("F2", "38b"),
+        ("F3", "39bb"),
+        ("F4", "40c"),
+        ("F5", "41c"),
+        ("F6", "42d"),
+        ("F7", "43e"),
+        ("F8", "44eb"),
+        ("F9", "45f"),
+        ("F10", "46f"),
+        ("F11", "47g"),
+        ("F12", "48g"),
+        ].iter()
+         .map(|(s1, s2)| (s1.to_string(), s2.to_string()))
+         .collect();
     let mut background_color = random_colour();
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -160,31 +149,6 @@ pub fn main() {
                     background_color = random_colour();
                 }
                 Event::KeyDown {
-                    keycode: Some(Keycode::F1),
-                    ..
-                } => {
-                    // Need to dump noise in a background thread or something
-                    let wav = AudioSpecWAV::load_wav(wav_file.clone())
-                        .expect("Could not load test WAV file");
-                    let spec = audio_queue.spec();
-                    let cvt = AudioCVT::new(
-                        wav.format,
-                        wav.channels,
-                        wav.freq,
-                        spec.format,
-                        spec.channels,
-                        spec.freq,
-                    ).expect("Could not convert WAV file");
-
-                    let data = cvt.convert(wav.buffer().to_vec());
-                    audio_queue.clear();
-                    audio_queue.queue(&data);
-                    // Start playback
-                    audio_queue.resume();
-                    // Play for a second
-                    // std::thread::sleep(Duration::from_millis(1_000));
-                }
-                Event::KeyDown {
                     keycode: Some(key), ..
                 } => {
                     if drawable_keys.contains(&key.name()) {
@@ -200,6 +164,24 @@ pub fn main() {
                         ); //rect!(150, 150, width, height);
                         drawables.push((texture, target));
                     }
+                    if let Some(note) = noisy_keys.get(&key.name()) {
+                        let wav = load_sound(&note);
+                        let spec = audio_queue.spec();
+                        let cvt = AudioCVT::new(
+                            wav.format,
+                            wav.channels,
+                            wav.freq,
+                            spec.format,
+                            spec.channels,
+                            spec.freq,
+                        ).expect("Could not convert WAV file");
+
+                        let data = cvt.convert(wav.buffer().to_vec());
+                        audio_queue.clear();
+                        audio_queue.queue(&data);
+                        // Start playback
+                        audio_queue.resume();
+                    }
                 }
                 _ => {}
             }
@@ -211,7 +193,6 @@ pub fn main() {
             canvas.copy(&texture, None, Some(target.clone())).unwrap();
         }
         canvas.present();
-        // let keys: HashSet<_> = event_pump.keyboard_state().pressed_scancodes().filter_map(Keycode::from_scancode).collect();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
