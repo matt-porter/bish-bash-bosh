@@ -1,22 +1,22 @@
 extern crate hsl;
-extern crate sdl2;
 extern crate rand;
+extern crate sdl2;
 
-use sdl2::pixels::Color;
-use sdl2::rect::Rect;
+use sdl2::audio::{AudioCVT, AudioCallback, AudioSpecDesired, AudioSpecWAV, AudioQueue};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
+use sdl2::rect::Rect;
 use sdl2::render::TextureQuery;
 use sdl2::video::FullscreenType;
-use sdl2::audio::{AudioCallback, AudioSpecDesired,AudioSpecWAV,AudioCVT};
 
 use hsl::HSL;
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
 use std::collections::HashSet;
 
-use std::time::Duration;
 use std::borrow::Cow;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 macro_rules! rect(
     ($x:expr, $y:expr, $w:expr, $h:expr) => (
@@ -47,18 +47,24 @@ fn random_position(rect: Rect, within_rect: Rect) -> Rect {
     let ry: f64 = thread_rng().gen();
     let posx = rx * (within_rect.width() - 1 * rect.width()) as f64;
     let posy = ry * (within_rect.height() - 1 * rect.height()) as f64;
-    rect!(posx as f64, posy  as f64, rect.width(), rect.height())
+    rect!(posx as f64, posy as f64, rect.width(), rect.height())
 }
 
 fn random_colour() -> Color {
     let h: f64 = thread_rng().gen();
-    let blue = HSL { h: h * 360.0, s: 1_f64, l: 0.5_f64 };
+    let blue = HSL {
+        h: h * 360.0,
+        s: 1_f64,
+        l: 0.5_f64,
+    };
     let rgb = blue.to_rgb();
     return Color::RGB(rgb.0, rgb.1, rgb.2);
 }
 
-
-fn display_keys(keys: HashSet<sdl2::keyboard::Keycode>, canvas: &mut sdl2::render::Canvas<sdl2::video::Window>) {
+fn display_keys(
+    keys: HashSet<sdl2::keyboard::Keycode>,
+    canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+) {
     println!("Displaying keys {:?}", keys);
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.draw_rect(Rect::new(20, 20, 50, 50)).unwrap();
@@ -69,7 +75,8 @@ pub fn main() {
     let video_subsystem = sdl_context.video().unwrap();
     let audio_subsystem = sdl_context.audio().unwrap();
     let (window_width, window_height) = (800, 600);
-    let mut window = video_subsystem.window("Bish Bash Bosh", window_width, window_height)
+    let mut window = video_subsystem
+        .window("Bish Bash Bosh", window_width, window_height)
         .position_centered()
         .opengl()
         .build()
@@ -85,77 +92,115 @@ pub fn main() {
     let mut font = ttf_context.load_font("DejaVuSans-Bold.ttf", 112).unwrap();
     font.set_style(sdl2::ttf::STYLE_BOLD);
     // Load a sound
-    let wav_file : Cow<'static, Path> = Cow::from(Path::new("./sounds/68437__pinkyfinger__piano-a.wav"));
+    let wav_file: Cow<'static, Path> =
+        Cow::from(Path::new("./sounds/68437__pinkyfinger__piano-a.wav"));
     let desired_spec = AudioSpecDesired {
-            freq: Some(44_100),
-            channels: Some(1), // mono
-            samples: None      // default
+        freq: Some(44_100),
+        channels: Some(1), // mono
+        samples: None,     // default
     };
-    
+    let mut sound_struct = Sound {
+        data: vec![],
+        volume: 0.25,
+        pos: 0,
+    };
+
+    let audio_queue: AudioQueue<u8> = audio_subsystem
+        .open_queue(None, &desired_spec)
+        .unwrap();
+    // let device = audio_subsystem
+    //     .open_playback(None, &desired_spec, |spec| {
+    //         let wav = AudioSpecWAV::load_wav(wav_file.clone())
+    //             .expect("Could not load test WAV file");
+
+    //         let cvt = AudioCVT::new(
+    //             wav.format,
+    //             wav.channels,
+    //             wav.freq,
+    //             spec.format,
+    //             spec.channels,
+    //             spec.freq,
+    //         ).expect("Could not convert WAV file");
+
+    //         let data = cvt.convert(wav.buffer().to_vec());
+    //         sound_struct.data = data;
+    //         sound_struct
+    //     })
+    //     .unwrap();
+
+
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas.clear();
     canvas.present();
 
     ///
     /// Keep track of all displayed characters, and their postitions
-    /// 
-
+    ///
     let mut drawables = vec![];
-    let drawable_keys : HashSet<String> = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
-                                         "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
-                                         "U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3",
-                                         "4", "5", "6", "7", "8", "9", ].iter().map(|s| s.to_string()).collect();
+    let drawable_keys: HashSet<String> = [
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R",
+        "S", "T", "U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    ].iter()
+        .map(|s| s.to_string())
+        .collect();
     let mut background_color = random_colour();
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    break 'running
-                },
-                Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Return),
+                    ..
+                } => {
                     drawables.clear();
                     background_color = random_colour();
-                },
-                Event::KeyDown { keycode: Some(Keycode::F1), .. } => {
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::F1),
+                    ..
+                } => {
                     // Need to dump noise in a background thread or something
-                    let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                        let wav = AudioSpecWAV::load_wav(wav_file.clone())
-                            .expect("Could not load test WAV file");
+                    let wav = AudioSpecWAV::load_wav(wav_file.clone())
+                        .expect("Could not load test WAV file");
+                    let spec = audio_queue.spec();
+                    let cvt = AudioCVT::new(
+                        wav.format,
+                        wav.channels,
+                        wav.freq,
+                        spec.format,
+                        spec.channels,
+                        spec.freq,
+                    ).expect("Could not convert WAV file");
 
-                        let cvt = AudioCVT::new(
-                                wav.format, wav.channels, wav.freq,
-                                spec.format, spec.channels, spec.freq)
-                            .expect("Could not convert WAV file");
-
-                        let data = cvt.convert(wav.buffer().to_vec());
-
-                        // initialize the audio callback
-                        Sound {
-                            data: data,
-                            volume: 0.25,
-                            pos: 0,
-                        }
-                    }).unwrap();
-
+                    let data = cvt.convert(wav.buffer().to_vec());
+                    audio_queue.clear();
+                    audio_queue.queue(&data);
                     // Start playback
-                    device.resume();
+                    audio_queue.resume();
                     // Play for a second
-                    std::thread::sleep(Duration::from_millis(1_000));
-                },
-                Event::KeyDown { keycode: Some(key), .. } 
-                => {
+                    // std::thread::sleep(Duration::from_millis(1_000));
+                }
+                Event::KeyDown {
+                    keycode: Some(key), ..
+                } => {
                     if drawable_keys.contains(&key.name()) {
                         let colour = random_colour();
-                        let surface = font.render(&key.name())
-                            .blended(colour).unwrap();
-                        let texture = texture_creator.create_texture_from_surface(&surface).unwrap();
+                        let surface = font.render(&key.name()).blended(colour).unwrap();
+                        let texture = texture_creator
+                            .create_texture_from_surface(&surface)
+                            .unwrap();
                         let TextureQuery { width, height, .. } = texture.query();
                         let target = random_position(
                             rect!(0, 0, width, height),
-                            rect!(0, 0, window_width, window_height)); //rect!(150, 150, width, height);
+                            rect!(0, 0, window_width, window_height),
+                        ); //rect!(150, 150, width, height);
                         drawables.push((texture, target));
                     }
-                },
+                }
                 _ => {}
             }
         }
@@ -167,6 +212,6 @@ pub fn main() {
         }
         canvas.present();
         // let keys: HashSet<_> = event_pump.keyboard_state().pressed_scancodes().filter_map(Keycode::from_scancode).collect();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));              
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
-} 
+}
