@@ -33,14 +33,18 @@ fn random_position(rect: Rect, within_rect: Rect) -> Rect {
     rect!(posx as f64, posy as f64, rect.width(), rect.height())
 }
 
-fn random_colour() -> Color {
-    let h: f64 = thread_rng().gen();
-    let blue = HSL {
-        h: h * 360.0,
-        s: 1_f64,
-        l: 0.5_f64,
-    };
-    let rgb = blue.to_rgb();
+fn random_colour(c: Color) -> Color {
+    let not_near_hsl = HSL::from_rgb(&[c.r, c.g, c.b]);
+    let mut generated = not_near_hsl.clone();
+    while (generated.h - not_near_hsl.h).abs() < 40. {
+        let h: f64 = thread_rng().gen();    
+        generated = HSL {
+            h: h * 360.0,
+            s: 1_f64,
+            l: 0.5_f64,
+        };
+    }
+    let rgb = generated.to_rgb();
     return Color::RGB(rgb.0, rgb.1, rgb.2);
 }
 
@@ -113,7 +117,7 @@ pub fn main() {
         ].iter()
          .map(|(s1, s2)| (s1.to_string(), s2.to_string()))
          .collect();
-    let mut background_color = random_colour();
+    let mut background_color = random_colour(Color::RGB(255, 255, 255));
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -129,7 +133,7 @@ pub fn main() {
                     ..
                 } => {
                     drawables.clear();
-                    background_color = random_colour();
+                    background_color = random_colour(Color::RGB(255, 255, 255));
                 }
                 Event::KeyDown {
                     keycode: Some(key),
@@ -137,7 +141,7 @@ pub fn main() {
                     ..
                 } => {
                     if drawable_keys.contains(&key.name()) {
-                        let colour = random_colour();
+                        let colour = random_colour(background_color);
                         let surface = font.render(&key.name()).blended(colour).unwrap();
                         let texture = texture_creator
                             .create_texture_from_surface(&surface)
