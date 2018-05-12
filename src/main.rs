@@ -2,7 +2,7 @@ extern crate hsl;
 extern crate rand;
 extern crate sdl2;
 
-use sdl2::audio::{AudioCVT, AudioCallback, AudioSpecDesired, AudioSpecWAV, AudioQueue};
+use sdl2::audio::{AudioCVT, AudioSpecDesired, AudioSpecWAV, AudioQueue};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -24,24 +24,7 @@ macro_rules! rect(
     )
 );
 
-struct Sound {
-    data: Vec<u8>,
-    volume: f32,
-    pos: usize,
-}
-
-impl AudioCallback for Sound {
-    type Channel = u8;
-
-    fn callback(&mut self, out: &mut [u8]) {
-        for dst in out.iter_mut() {
-            *dst = (*self.data.get(self.pos).unwrap_or(&0) as f32 * self.volume) as u8;
-            self.pos += 1;
-        }
-    }
-}
-
-/// Return a random position that fits rect within rect
+// Return a random position that fits rect within rect
 fn random_position(rect: Rect, within_rect: Rect) -> Rect {
     let rx: f64 = thread_rng().gen();
     let ry: f64 = thread_rng().gen();
@@ -106,9 +89,7 @@ pub fn main() {
     canvas.clear();
     canvas.present();
 
-    ///
-    /// Keep track of all displayed characters, and their postitions
-    ///
+    // Keep track of all displayed characters, and their postitions
     let mut drawables = vec![];
     let drawable_keys: HashSet<String> = [
         "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R",
@@ -139,17 +120,21 @@ pub fn main() {
                 Event::Quit { .. }
                 | Event::KeyDown {
                     keycode: Some(Keycode::Escape),
+                    repeat: true,
                     ..
                 } => break 'running,
                 Event::KeyDown {
                     keycode: Some(Keycode::Return),
+                    repeat: false,
                     ..
                 } => {
                     drawables.clear();
                     background_color = random_colour();
                 }
                 Event::KeyDown {
-                    keycode: Some(key), ..
+                    keycode: Some(key),
+                    repeat: false, 
+                    ..
                 } => {
                     if drawable_keys.contains(&key.name()) {
                         let colour = random_colour();
