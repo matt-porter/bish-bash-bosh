@@ -4,10 +4,12 @@ extern crate sdl2;
 
 use sdl2::audio::{AudioCVT, AudioSpecDesired, AudioSpecWAV, AudioQueue};
 use sdl2::event::Event;
+use sdl2::image::{INIT_PNG, LoadSurface};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::TextureQuery;
+use sdl2::render::{TextureQuery};
+use sdl2::surface::Surface;
 use sdl2::video::FullscreenType;
 
 use hsl::HSL;
@@ -57,10 +59,20 @@ fn load_sound(note: &str) -> AudioSpecWAV {
         .expect("Could not load test WAV file")
 }
 
+fn load_image(fname: &str) -> Surface {
+    // Load a sound
+    let filename = format!("{}.png", fname);
+    let path: PathBuf = ["./images", &filename].iter().collect();
+    let image_file: Cow<'static, Path> = Cow::from(path);
+    Surface::from_file(image_file.clone())
+        .expect("Could not load image file")
+}
+
 pub fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let audio_subsystem = sdl_context.audio().unwrap();
+    let image_context = sdl2::image::init(INIT_PNG);
     let (window_width, window_height) = (800, 600);
     let mut window = video_subsystem
         .window("Bish Bash Bosh", window_width, window_height)
@@ -143,6 +155,11 @@ pub fn main() {
         ].iter()
          .map(|(s1, s2)| (s1.to_string(), s2.to_string()))
          .collect();
+    let images: HashMap<String, String> = [
+        ("T", "T"),
+        ].iter()
+         .map(|(s1, s2)| (s1.to_string(), s2.to_string()))
+         .collect();
     let mut background_color = random_colour(Color::RGB(255, 255, 255));
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -196,6 +213,18 @@ pub fn main() {
                         audio_queue.queue(&data);
                         // Start playback
                         audio_queue.resume();
+                    }
+                    if let Some(filename) = images.get(&key.name()) {
+                        let surface = load_image(&filename);
+                        let texture = texture_creator
+                            .create_texture_from_surface(&surface)
+                            .unwrap();
+                        let TextureQuery { width, height, .. } = texture.query();
+                        let target = random_position(
+                            rect!(0, 0, width, height),
+                            rect!(0, 0, window_width, window_height),
+                        );
+                        drawables.push((texture, target));
                     }
                 }
                 _ => {}
