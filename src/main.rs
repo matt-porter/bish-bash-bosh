@@ -26,13 +26,41 @@ macro_rules! rect(
     )
 );
 
-// Return a random position that fits rect within rect
-fn random_position(rect: Rect, within_rect: Rect) -> Rect {
-    let rx: f64 = thread_rng().gen();
-    let ry: f64 = thread_rng().gen();
-    let posx = rx * (within_rect.width() - 1 * rect.width()) as f64;
-    let posy = ry * (within_rect.height() - 1 * rect.height()) as f64;
-    rect!(posx as f64, posy as f64, rect.width(), rect.height())
+trait PositionStrategy {
+    fn next_position(&mut self, rect: Rect, within_rect: Rect) -> Rect;
+    fn reset(&mut self) {
+
+    }
+}
+
+struct RandomPositionStrategy {}
+
+impl PositionStrategy for RandomPositionStrategy {
+    // Return a random position that fits rect within rect
+    fn next_position(&mut self, rect: Rect, within_rect: Rect) -> Rect {
+        let rx: f64 = thread_rng().gen();
+        let ry: f64 = thread_rng().gen();
+        let posx = rx * (within_rect.width() - 1 * rect.width()) as f64;
+        let posy = ry * (within_rect.height() - 1 * rect.height()) as f64;
+        rect!(posx as f64, posy as f64, rect.width(), rect.height())
+    }
+}
+
+struct SequentialPositionStrategy {
+    next_x: u32
+}
+
+impl PositionStrategy for SequentialPositionStrategy {    
+    fn next_position(&mut self, rect: Rect, within_rect: Rect) -> Rect {
+        let y = within_rect.height() / 2;
+        let x = self.next_x;
+        self.next_x = x + rect.width();
+        rect!(x, y, rect.width(), rect.height())
+    }
+
+    fn reset(&mut self) {
+        self.next_x = 0;
+    }
 }
 
 fn random_colour(c: Color) -> Color {
@@ -100,6 +128,9 @@ pub fn main() {
     let audio_queue: AudioQueue<u8> = audio_subsystem
         .open_queue(None, &desired_spec)
         .unwrap();
+
+    // let mut position_strategy = RandomPositionStrategy { };
+    let mut position_strategy = SequentialPositionStrategy { next_x: 0 };
 
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas.clear();
@@ -175,6 +206,7 @@ pub fn main() {
                     repeat: false,
                     ..
                 } => {
+                    position_strategy.reset();
                     drawables.clear();
                     background_color = random_colour(Color::RGB(255, 255, 255));
                 }
@@ -190,7 +222,7 @@ pub fn main() {
                             .create_texture_from_surface(&surface)
                             .unwrap();
                         let TextureQuery { width, height, .. } = texture.query();
-                        let target = random_position(
+                        let target = position_strategy.next_position(
                             rect!(0, 0, width, height),
                             rect!(0, 0, window_width, window_height),
                         ); //rect!(150, 150, width, height);
@@ -220,7 +252,7 @@ pub fn main() {
                             .create_texture_from_surface(&surface)
                             .unwrap();
                         let TextureQuery { width, height, .. } = texture.query();
-                        let target = random_position(
+                        let target = position_strategy.next_position(
                             rect!(0, 0, width, height),
                             rect!(0, 0, window_width, window_height),
                         );
