@@ -46,20 +46,30 @@ impl PositionStrategy for RandomPositionStrategy {
     }
 }
 
-struct SequentialPositionStrategy {
-    next_x: u32
+struct LeftToRightStrategy {
+    next_x: u32,
+    next_y: u32,
 }
 
-impl PositionStrategy for SequentialPositionStrategy {    
+impl PositionStrategy for LeftToRightStrategy {    
     fn next_position(&mut self, rect: Rect, within_rect: Rect) -> Rect {
-        let y = within_rect.height() / 2;
+        if self.next_x > within_rect.right() as u32 {
+            self.next_x = 0;
+            self.next_y = self.next_y + rect.height() as u32;
+        }
+        if self.next_y > within_rect.bottom() as u32 {
+            self.next_y = 0;
+        }
+        let y = self.next_y;
         let x = self.next_x;
         self.next_x = x + rect.width();
+        
         rect!(x, y, rect.width(), rect.height())
     }
 
     fn reset(&mut self) {
         self.next_x = 0;
+        self.next_y = 0;
     }
 }
 
@@ -100,7 +110,7 @@ pub fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let audio_subsystem = sdl_context.audio().unwrap();
-    let image_context = sdl2::image::init(INIT_PNG);
+    let _image_context = sdl2::image::init(INIT_PNG);
     let (window_width, window_height) = (800, 600);
     let mut window = video_subsystem
         .window("Bish Bash Bosh", window_width, window_height)
@@ -130,7 +140,7 @@ pub fn main() {
         .unwrap();
 
     // let mut position_strategy = RandomPositionStrategy { };
-    let mut position_strategy = SequentialPositionStrategy { next_x: 0 };
+    let mut position_strategy = LeftToRightStrategy { next_x: 0 , next_y: window_height / 3};
 
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas.clear();
@@ -188,6 +198,17 @@ pub fn main() {
          .collect();
     let images: HashMap<String, String> = [
         ("T", "T"),
+        ("B", "buzz"),
+        ("C", "chase"),
+        ("D", "dumbo"),
+        ("G", "geo"),
+        ("H", "harrison"),
+        ("I", "igglepiggle"),
+        ("M", "mickey"),
+        ("P", "peppa"),
+        ("S", "simba"),
+        ("U", "upsiedaisy"),
+        ("W", "woody"),
         ].iter()
          .map(|(s1, s2)| (s1.to_string(), s2.to_string()))
          .collect();
