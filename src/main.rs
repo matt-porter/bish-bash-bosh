@@ -5,6 +5,7 @@ extern crate sdl2;
 use sdl2::audio::{AudioCVT, AudioSpecDesired, AudioSpecWAV, AudioQueue};
 use sdl2::event::Event;
 use sdl2::image::{INIT_PNG, LoadSurface};
+use sdl2::gfx::rotozoom::RotozoomSurface;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -98,7 +99,7 @@ fn load_sound(note: &str) -> AudioSpecWAV {
 }
 
 fn load_image(fname: &str) -> Surface {
-    // Load a sound
+    // Load an image
     let filename = format!("{}.png", fname);
     let path: PathBuf = ["./images", &filename].iter().collect();
     let image_file: Cow<'static, Path> = Cow::from(path);
@@ -268,7 +269,10 @@ pub fn main() {
                         audio_queue.resume();
                     }
                     if let Some(filename) = images.get(&key.name()) {
-                        let surface = load_image(&filename);
+                        let mut surface = load_image(&filename);
+                        let sf = (100f64 / surface.height() as f64);
+                        println!("{}", sf );
+                        let surface = surface.rotozoom(0f64, sf, false).unwrap();
                         let texture = texture_creator
                             .create_texture_from_surface(&surface)
                             .unwrap();
